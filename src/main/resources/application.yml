@@ -1,0 +1,82 @@
+spring:
+  application:
+    name: iso20022-converter
+
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:fednow}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    pool:
+      initial-size: 10
+      max-size: 50
+      max-idle-time: 30m
+      validation-query: SELECT 1
+
+  codec:
+    max-in-memory-size: 10MB
+
+server:
+  port: 8080
+  netty:
+    connection-timeout: 30s
+
+logging:
+  level:
+    root: INFO
+    com.fednow: DEBUG
+    org.springframework.r2dbc: DEBUG
+    io.r2dbc.postgresql: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Woodstox XML configuration
+xml:
+  validation:
+    enabled: true
+    schema-location: classpath:schemas/
+  processing:
+    max-entity-expansion: 10
+    max-entity-depth: 10
+
+# ISO 20022 message configuration
+iso20022:
+  validation:
+    strict-mode: true
+    business-rules-enabled: true
+
+  converters:
+    timeout-seconds: 5
+    retry-attempts: 3
+
+  fednow:
+    settlement-method: INDA
+    clearing-system: FDW
+    amount-limit-min: 0.01
+    amount-limit-max: 500000.00
+    currency: USD
+    timezone: UTC
+
+# OpenAPI/Swagger configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  show-actuator: false
+
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
