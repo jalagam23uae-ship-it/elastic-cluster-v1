@@ -32,6 +32,18 @@ public class ConverterContext {
     private BankContext bankContext;
 
     /**
+     * Source Message ID - UUID of the source message in database.
+     * Used for tracking conversions and linking to messages table.
+     */
+    private UUID sourceMessageId;
+
+    /**
+     * Target Message ID - UUID of the target message in database.
+     * Used for tracking conversions and linking to messages table.
+     */
+    private UUID targetMessageId;
+
+    /**
      * Generated Message ID - Unique ID for the target message.
      * Max 35 characters.
      */
@@ -183,6 +195,12 @@ public class ConverterContext {
          * Examples: ACC001, OFAC001, FRD001
          */
         private String errorCode;
+
+        /**
+         * Error Category - Category of the error.
+         * Examples: ACCOUNT, AMOUNT, OFAC, FRAUD, SCHEMA
+         */
+        private String category;
 
         /**
          * Field Path - Path to the field that failed validation.
