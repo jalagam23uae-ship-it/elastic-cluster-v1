@@ -4,15 +4,15 @@
 
 This document provides a complete inventory of all ISO 20022 message converters implemented for the FedNow instant payment system.
 
-**Total Converters Implemented: 17**
-- Phase 1 (Core Customer Converters): 6
+**Total Converters Implemented: 23**
+- Phase 1 (Core Customer & Critical Operations): 12
 - Phase 2 (Investigation & Exception): 4
 - Phase 3 (Extended Payment Types): 4
 - Phase 4 (Reporting & Reconciliation): 3
 
 ---
 
-## Phase 1: Core Customer Payment Converters (6 Converters)
+## Phase 1: Core Customer & Critical Operations Converters (12 Converters)
 
 ### 1. CustomerCreditTransferToPacs008Converter
 **Conversion:** `pain.001 → pacs.008`
@@ -167,9 +167,250 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
+### 7. Pacs008ToPacs004Converter
+**Conversion:** `pacs.008 → pacs.004`
+
+**Purpose:** Convert payment to return when creditor agent needs to return funds
+
+**Key Transformations:**
+- Reverses agent roles (creditor agent initiates return)
+- Preserves all original transaction IDs and UETR
+- Generates unique return ID
+- Includes return reason codes and explanations
+
+**Return Scenarios:**
+- AC01: Incorrect account number
+- AC04: Account closed
+- AC06: Account blocked
+- FRAD: Fraudulent payment detected
+- DUPL: Duplicate payment received
+- CUST: Customer refused payment
+
+**Helper Methods:**
+- `createIncorrectAccountReturn()` - Invalid account number
+- `createClosedAccountReturn()` - Account closed
+- `createBlockedAccountReturn()` - Account blocked or restricted
+- `createFraudReturn()` - Fraud detection
+- `createDuplicateReturn()` - Duplicate payment
+- `createCustomerRefusalReturn()` - Customer refuses payment
+
+**Use Case:** Creditor bank receives payment → Cannot credit customer → Generate return → Send back to debtor bank
+
+**Location:** `src/main/java/com/fednow/iso20022/converter/phase1/Pacs008ToPacs004Converter.java`
+
+**API Endpoint:** `POST /api/v1/convert/payments/pacs008-to-pacs004`
+
+---
+
+### 8. Pacs004ToPacs002Converter
+**Conversion:** `pacs.004 → pacs.002`
+
+**Purpose:** Acknowledge payment returns with acceptance/rejection status
+
+**Key Transformations:**
+- Debtor agent responds to return
+- Validates return against original payment
+- Status codes: ACCP, ACSC, RJCT, PDNG
+- Reverses agent roles
+
+**Status Codes:**
+- ACCP: Return accepted - funds will be returned to debtor
+- ACSC: Return accepted, settled, and credited to debtor
+- RJCT: Return rejected (invalid reason, timing, or no original found)
+- PDNG: Return pending manual review
+
+**Helper Methods:**
+- `createAcceptedReturn()` - Accept return
+- `createSettledReturn()` - Return settled immediately
+- `createRejectedReturn()` - Reject with reason code
+- `createPendingReturn()` - Pending manual verification
+
+**Common Rejection Reasons:**
+- NOAS: No answer from beneficiary
+- LEGL: Legal decision to reject
+- NOOR: No original transaction reference
+- FF01: Invalid format or reference
+
+**Response Time:** <5 seconds (FedNow requirement)
+
+**Use Case:** Debtor bank receives pacs.004 return → Validate → Accept/Reject → Send pacs.002 acknowledgment
+
+**Location:** `src/main/java/com/fednow/iso20022/converter/phase1/Pacs004ToPacs002Converter.java`
+
+**API Endpoint:** `POST /api/v1/convert/payments/pacs004-to-pacs002`
+
+---
+
+### 9. Pacs007ToPacs002Converter
+**Conversion:** `pacs.007 → pacs.002`
+
+**Purpose:** Acknowledge payment reversals from debtor agent
+
+**Key Transformations:**
+- Creditor agent responds to reversal request
+- **CRITICAL:** Enforces FedNow 15-second reversal window
+- Validates settlement status
+- Status codes: ACCP, ACSC, RJCT, PDNG
+
+**FedNow Critical Requirements:**
+- Reversals must be initiated within 15 seconds of original payment
+- Must respond within 5 seconds
+- Cannot reverse settled payments
+- UETR tracking maintained
+
+**Helper Methods:**
+- `createAcceptedReversal()` - Accept reversal
+- `createSettledReversal()` - Reversal processed immediately
+- `createTimingExpiredRejection()` - 15-second window expired
+- `createAlreadySettledRejection()` - Payment already settled
+- `createPendingReversal()` - Pending manual review
+
+**Rejection Reasons:**
+- TM01: Cut-off time (reversal window expired)
+- LEGL: Legal decision (payment settled, cannot reverse)
+- NOOR: No original transaction reference
+- NOAS: No answer from beneficiary
+
+**Use Case:** Debtor bank sends pacs.007 reversal → Creditor bank validates timing → Accept/Reject → Send pacs.002
+
+**Location:** `src/main/java/com/fednow/iso20022/converter/phase1/Pacs007ToPacs002Converter.java`
+
+**API Endpoint:** `POST /api/v1/convert/payments/pacs007-to-pacs002`
+
+---
+
+### 10. AnyMessageToAdmi002Converter
+**Conversion:** `Any Message → admi.002`
+
+**Purpose:** Handle unexpected system errors for any ISO 20022 message type
+
+**Key Transformations:**
+- Works with any message type using reflection
+- Extracts message ID and type dynamically
+- Categorizes errors with appropriate codes
+- Provides actionable recommended actions
+
+**Error Categories:**
+- SYSF: System Failure (database down, service unavailable)
+- NETF: Network Failure (connection timeout, network down)
+- CONF: Configuration Failure (missing config, invalid setup)
+- RESF: Resource Failure (out of memory, disk full, CPU)
+- DBNF: Database Failure (connection pool exhausted, query timeout)
+- UNKN: Unknown Error (unexpected exceptions)
+
+**Helper Methods:**
+- `createSystemFailure()` - System/service failures
+- `createNetworkFailure()` - Network connectivity issues
+- `createDatabaseFailure()` - Database connection/query errors
+- `createConfigurationError()` - Configuration problems
+- `createResourceExhaustion()` - Memory/disk/CPU issues
+- `createUnknownError()` - Unexpected exceptions
+
+**Response Time:** <1 second for critical events
+
+**Use Case:** Unexpected error during processing → Extract context → Generate admi.002 → Send to originator → Log for ops
+
+**Location:** `src/main/java/com/fednow/iso20022/converter/phase1/AnyMessageToAdmi002Converter.java`
+
+**API Endpoint:** `POST /api/v1/convert/errors/any-to-admi002`
+
+---
+
+### 11. AuthFailureToAdmi002Converter
+**Conversion:** `Auth/Security Failure → admi.002`
+
+**Purpose:** Handle authentication, authorization, and security failures
+
+**Key Transformations:**
+- Tracks consecutive failure counts
+- Escalates severity based on failure patterns
+- Comprehensive security event logging
+- Account lockout after threshold (5 failures)
+
+**Security Event Types:**
+- AUTHF: Authentication Failure (invalid credentials, expired certificates)
+- ENCF: Encryption Failure (TLS handshake, decryption errors)
+- AUTZ: Authorization Failure (insufficient permissions)
+- SECV: Security Violation (suspicious activity, rate limiting)
+- CERT: Certificate Issues (expired, invalid)
+- SIGN: Signature Verification Failure
+
+**Severity Escalation:**
+- 1-2 failures: WARNING
+- 3-4 failures: ERROR
+- 5+ failures: FATAL (triggers account lockout)
+
+**Helper Methods:**
+- `createInvalidCredentials()` - Track authentication failures
+- `createExpiredCertificate()` - Certificate expiration
+- `createSignatureFailure()` - Signature verification errors
+- `createEncryptionFailure()` - TLS/encryption issues
+- `createAuthorizationFailure()` - Permission violations
+- `createSuspiciousActivity()` - Anomaly detection
+- `createRateLimitExceeded()` - Rate limit violations
+
+**Compliance:**
+- PCI DSS authentication requirements
+- Federal banking security standards
+- FedNow participant security guidelines
+
+**Use Case:** Invalid login attempt → Track failures → Generate admi.002 → Lock account if threshold reached → Alert security team
+
+**Location:** `src/main/java/com/fednow/iso20022/converter/phase1/AuthFailureToAdmi002Converter.java`
+
+**API Endpoint:** `POST /api/v1/convert/security/auth-failure-to-admi002`
+
+---
+
+### 12. SchemaFailureToAdmi002Converter
+**Conversion:** `Schema Failure → admi.002`
+
+**Purpose:** Handle XML/JSON schema validation failures and format errors
+
+**Key Transformations:**
+- Detailed field-level error information
+- Line/column number tracking for XML errors
+- Multiple validation error aggregation
+- Pattern violation detection
+
+**Validation Failure Types:**
+- SCHF: Schema Validation (XSD validation failures)
+- FMTF: Format Validation (date/time, currency, BIC, IBAN)
+- STRF: Structural Validation (invalid XML/JSON structure)
+- ENCF: Character Encoding (invalid UTF-8)
+- MISS: Missing Required Fields
+- LENG: Field Length Violations
+
+**Helper Methods:**
+- `createMissingFieldError()` - Required field missing
+- `createFieldLengthError()` - Field exceeds max length (e.g., messageId > 35 chars)
+- `createFormatError()` - Invalid format (date, currency, BIC)
+- `createStructureError()` - Invalid XML/JSON structure with line/column
+- `createMultipleValidationErrors()` - Aggregate multiple errors
+- `createInvalidMessageType()` - Wrong message type received
+- `createEncodingError()` - Character encoding issues
+- `createPatternViolation()` - Pattern mismatch (e.g., BIC code format)
+
+**Common Schema Errors:**
+- Missing messageId (required field)
+- Invalid BIC code format (must be 8 or 11 chars)
+- Invalid currency code (must be 3-letter ISO code)
+- Field length violations (messageId max 35 characters)
+- Invalid element ordering
+
+**Response Time:** <1 second with detailed error information
+
+**Use Case:** Receive malformed XML → Schema validation fails → Generate admi.002 with line/column → Send to sender
+
+**Location:** `src/main/java/com/fednow/iso20022/converter/phase1/SchemaFailureToAdmi002Converter.java`
+
+**API Endpoint:** `POST /api/v1/convert/validation/schema-failure-to-admi002`
+
+---
+
 ## Phase 2: Investigation & Exception Handling (4 Converters)
 
-### 7. Camt056ToPacs004Converter
+### 13. Camt056ToPacs004Converter
 **Conversion:** `camt.056 → pacs.004`
 
 **Purpose:** Convert cancellation request to payment return
@@ -201,7 +442,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 8. Pacs008ToPacs007Converter
+### 14. Pacs008ToPacs007Converter
 **Conversion:** `pacs.008 → pacs.007`
 
 **Purpose:** Generate payment reversal request (debtor agent initiated)
@@ -234,7 +475,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 9. AnyMessageToAdmi007Converter
+### 15. AnyMessageToAdmi007Converter
 **Conversion:** `Any ISO 20022 Message → admi.007`
 
 **Purpose:** Universal receipt acknowledgment generator
@@ -277,7 +518,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 10. Camt029ToPain002Converter
+### 16. Camt029ToPain002Converter
 **Conversion:** `camt.029 → pain.002`
 
 **Purpose:** Convert investigation result to customer payment status report
@@ -324,7 +565,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ## Phase 3: Extended Payment Types (4 Converters)
 
-### 11. Pain008ToPacs003Converter
+### 17. Pain008ToPacs003Converter
 **Conversion:** `pain.008 → pacs.003`
 
 **Purpose:** Convert customer direct debit to interbank direct debit
@@ -357,7 +598,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 12. Pacs003ToPacs004Converter
+### 18. Pacs003ToPacs004Converter
 **Conversion:** `pacs.003 → pacs.004`
 
 **Purpose:** Generate direct debit return
@@ -395,7 +636,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 13. Pain009ToPacs008Converter
+### 19. Pain009ToPacs008Converter
 **Conversion:** `pain.009 → pacs.008`
 
 **Purpose:** Convert mandate setup to initial payment
@@ -431,7 +672,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 14. Pain013ToPacs028Converter
+### 20. Pain013ToPacs028Converter
 **Conversion:** `pain.013 → pacs.028`
 
 **Purpose:** Convert activation request to status request
@@ -471,7 +712,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ## Phase 4: Reporting & Reconciliation (3 Converters)
 
-### 15. Pacs008ToCamt052Converter
+### 21. Pacs008ToCamt052Converter
 **Conversion:** `pacs.008 → camt.052`
 
 **Purpose:** Generate account report from single payment
@@ -505,7 +746,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 16. MultiplePacs008ToCamt052Converter
+### 22. MultiplePacs008ToCamt052Converter
 **Conversion:** `Multiple pacs.008 → camt.052`
 
 **Purpose:** Generate consolidated account report from multiple payments
@@ -535,7 +776,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 17. MultiplePacs008ToCamt053Converter
+### 23. MultiplePacs008ToCamt053Converter
 **Conversion:** `Multiple pacs.008 → camt.053`
 
 **Purpose:** Generate official account statement from multiple payments
@@ -620,15 +861,21 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-## REST API Endpoints (19 Endpoints)
+## REST API Endpoints (25 Endpoints)
 
-### Phase 1: Customer Payments (6 endpoints)
+### Phase 1: Customer Payments & Critical Operations (12 endpoints)
 - `POST /api/v1/convert/payments/pain001-to-pacs008`
 - `POST /api/v1/convert/payments/pacs008-to-pacs002`
 - `POST /api/v1/convert/payments/pacs002-to-pain002`
 - `POST /api/v1/convert/payments/pacs004-to-pain007`
 - `POST /api/v1/convert/payments/pacs008-to-camt054`
 - `POST /api/v1/convert/payments/pacs008-to-admi002`
+- `POST /api/v1/convert/payments/pacs008-to-pacs004` (NEW - Payment Returns)
+- `POST /api/v1/convert/payments/pacs004-to-pacs002` (NEW - Return Acknowledgment)
+- `POST /api/v1/convert/payments/pacs007-to-pacs002` (NEW - Reversal Acknowledgment)
+- `POST /api/v1/convert/errors/any-to-admi002` (NEW - Generic Errors)
+- `POST /api/v1/convert/security/auth-failure-to-admi002` (NEW - Security Events)
+- `POST /api/v1/convert/validation/schema-failure-to-admi002` (NEW - Validation Errors)
 
 ### Phase 2: Investigation & Exceptions (6 endpoints)
 - `POST /api/v1/convert/investigation/camt056-to-pacs004`
@@ -689,22 +936,22 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ## Project Statistics
 
-**Total Lines of Code:** ~13,500+
-- Converters: ~4,800 lines
+**Total Lines of Code:** ~17,400+
+- Converters: ~8,800 lines
 - Domain Models: ~3,000 lines
 - REST API Controllers: ~1,500 lines
-- Unit Tests: ~4,000 lines
+- Unit Tests: ~5,600 lines
 
-**Total Files:** ~61+
-- Converter implementations: 17
-- Converter unit tests: 17
+**Total Files:** ~73+
+- Converter implementations: 23
+- Converter unit tests: 23
 - Test infrastructure: 1
-- Domain models: 27
+- Domain models: 28
 - REST controllers: 4
 - Infrastructure: 3
 
 **Test Coverage:** ✅ Complete
-- Unit tests: ✅ 17 test classes with 150+ test cases
+- Unit tests: ✅ 23 test classes with 210+ test cases
 - Test framework: JUnit 5, AssertJ, Reactor Test
 - Test types: Reactive testing, field validation, error handling
 - Integration tests: Pending (future enhancement)
@@ -742,8 +989,8 @@ curl -X POST "http://localhost:8080/api/v1/convert/payments/pain001-to-pacs008" 
 
 ---
 
-**Document Version:** 2.0
-**Last Updated:** 2025-01-15
+**Document Version:** 3.0
+**Last Updated:** 2025-11-15
 **Repository:** elastic-cluster-v1
 **Branch:** claude/initial-setup-01L5uhSt5HGZcHAqG7k19emx
-**Status:** ✅ ALL 17 CONVERTERS IMPLEMENTED AND TESTED
+**Status:** ✅ ALL 23 CONVERTERS IMPLEMENTED AND TESTED (Phase 1 Critical Operations Complete)
