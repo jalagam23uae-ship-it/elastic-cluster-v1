@@ -4,10 +4,12 @@ import com.fednow.iso20022.api.dto.ApiResponse;
 import com.fednow.iso20022.converter.core.ConverterContext;
 import com.fednow.iso20022.converter.phase2.*;
 import com.fednow.iso20022.domain.admi.Admi007;
+import com.fednow.iso20022.domain.camt.Camt029;
 import com.fednow.iso20022.domain.camt.Camt056;
 import com.fednow.iso20022.domain.pacs.Pacs004;
 import com.fednow.iso20022.domain.pacs.Pacs007;
 import com.fednow.iso20022.domain.pacs.Pacs008;
+import com.fednow.iso20022.domain.pain.Pain002;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -35,6 +37,7 @@ public class Phase2InvestigationController {
     private final Camt056ToPacs004Converter camt056ToPacs004Converter;
     private final Pacs008ToPacs007Converter pacs008ToPacs007Converter;
     private final AnyMessageToAdmi007Converter anyMessageToAdmi007Converter;
+    private final Camt029ToPain002Converter camt029ToPain002Converter;
 
     @Operation(
             summary = "Convert cancellation request to payment return",
@@ -247,5 +250,56 @@ public class Phase2InvestigationController {
                 .map(admi007 -> ApiResponse.success(admi007,
                         "Authentication failure acknowledgment generated"))
                 .doOnSuccess(response -> log.info("Auth failure receipt generated"));
+    }
+
+    @Operation(
+            summary = "Convert investigation result to customer status",
+            description = """
+                    Converts camt.029 (Resolution of Investigation) to pain.002 (Customer Payment Status Report).
+
+                    Translates payment investigation outcome into customer-friendly status report.
+
+                    **Investigation Scenarios:**
+                    - Missing payment (customer claims not received)
+                    - Payment discrepancy (amount/details don't match)
+                    - Customer complaint (disputed transaction)
+                    - Regulatory inquiry (compliance investigation)
+                    - Fraud investigation (suspected fraud)
+
+                    **Resolution Outcomes:**
+                    - RSLV (Resolved): Payment found and processed → Status ACCP
+                    - PNDG (Pending): Investigation ongoing → Status PDNG
+                    - CNCL (Cancelled): Payment cancelled → Status RJCT
+                    - NRES (No Resolution): Cannot resolve → Status RJCT with explanation
+
+                    **Customer Messages:**
+                    - Payment found and processed successfully
+                    - Payment was returned (with reason)
+                    - Investigation ongoing (expected completion)
+                    - Payment not found in records
+                    - Corrective action taken
+
+                    **Workflow:**
+                    1. Bank completes investigation
+                    2. Generate camt.029 with results
+                    3. Convert to pain.002
+                    4. Send customer-friendly status to customer
+                    """
+    )
+    @PostMapping(value = "/camt029-to-pain002",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public Mono<ApiResponse<Pain002>> convertCamt029ToPain002(
+            @Parameter(description = "Investigation resolution message", required = true)
+            @RequestBody Camt029 camt029) {
+
+        log.info("Converting camt.029 to pain.002 - Investigation result to customer status");
+
+        ConverterContext context = ConverterContext.builder().build();
+
+        return camt029ToPain002Converter.convert(camt029, context)
+                .map(pain002 -> ApiResponse.success(pain002,
+                        "Successfully converted investigation result to customer status"))
+                .doOnSuccess(response -> log.info("Customer status generated from investigation result"));
     }
 }
