@@ -1,0 +1,22 @@
+# Prometheus Configuration for FedNow ISO 20022 Converter
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+# Scrape configurations
+scrape_configs:
+  # Spring Boot Application Metrics
+  - job_name: 'fednow-converter'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['iso20022-converter:8080']
+        labels:
+          application: 'fednow-converter'
+          environment: 'docker'
+
+  # Prometheus Self-Monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
