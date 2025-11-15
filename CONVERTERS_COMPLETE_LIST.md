@@ -167,7 +167,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-## Phase 2: Investigation & Exception Handling (3 Converters)
+## Phase 2: Investigation & Exception Handling (4 Converters)
 
 ### 7. Camt056ToPacs004Converter
 **Conversion:** `camt.056 → pacs.004`
@@ -578,7 +578,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-## Supporting Domain Models (20+ Models)
+## Supporting Domain Models (28+ Models)
 
 ### Customer Payments (pain.*)
 1. **Pain001** - Customer Credit Transfer Initiation
@@ -597,29 +597,30 @@ This document provides a complete inventory of all ISO 20022 message converters 
 12. **Pacs028** - FI to FI Payment Status Request
 
 ### Cash Management (camt.*)
-13. **Camt052** - Bank to Customer Account Report
-14. **Camt053** - Bank to Customer Account Statement
-15. **Camt054** - Bank to Customer Debit/Credit Notification
-16. **Camt056** - FI to FI Payment Cancellation Request
+13. **Camt029** - Resolution of Investigation
+14. **Camt052** - Bank to Customer Account Report
+15. **Camt053** - Bank to Customer Account Statement
+16. **Camt054** - Bank to Customer Debit/Credit Notification
+17. **Camt056** - FI to FI Payment Cancellation Request
 
 ### Administration (admi.*)
-17. **Admi002** - System Event Notification
-18. **Admi007** - Receipt Acknowledgement
+18. **Admi002** - System Event Notification
+19. **Admi007** - Receipt Acknowledgement
 
 ### Common Components
-19. **GroupHeader** - Message header (ID, timestamp, agents)
-20. **PaymentIdentification** - Payment IDs (InstrId, E2EId, TxId, UETR)
-21. **Amount** - Currency and value
-22. **PartyIdentification** - Party details (name, address, ID)
-23. **AgentIdentification** - Bank/FI details (BIC, routing number)
-24. **AccountIdentification** - Account details
-25. **SettlementInformation** - Settlement method and clearing system
-26. **RemittanceInformation** - Payment remittance details
-27. **StatusReason** - Status and rejection reasons
+20. **GroupHeader** - Message header (ID, timestamp, agents)
+21. **PaymentIdentification** - Payment IDs (InstrId, E2EId, TxId, UETR)
+22. **Amount** - Currency and value
+23. **PartyIdentification** - Party details (name, address, ID)
+24. **AgentIdentification** - Bank/FI details (BIC, routing number)
+25. **AccountIdentification** - Account details
+26. **SettlementInformation** - Settlement method and clearing system
+27. **RemittanceInformation** - Payment remittance details
+28. **StatusReason** - Status and rejection reasons
 
 ---
 
-## REST API Endpoints (18 Endpoints)
+## REST API Endpoints (19 Endpoints)
 
 ### Phase 1: Customer Payments (6 endpoints)
 - `POST /api/v1/convert/payments/pain001-to-pacs008`
@@ -629,9 +630,10 @@ This document provides a complete inventory of all ISO 20022 message converters 
 - `POST /api/v1/convert/payments/pacs008-to-camt054`
 - `POST /api/v1/convert/payments/pacs008-to-admi002`
 
-### Phase 2: Investigation & Exceptions (5 endpoints)
+### Phase 2: Investigation & Exceptions (6 endpoints)
 - `POST /api/v1/convert/investigation/camt056-to-pacs004`
 - `POST /api/v1/convert/investigation/pacs008-to-pacs007`
+- `POST /api/v1/convert/investigation/camt029-to-pain002`
 - `POST /api/v1/convert/investigation/any-to-admi007`
 - `POST /api/v1/convert/investigation/success-receipt`
 - `POST /api/v1/convert/investigation/auth-failure-receipt`
@@ -687,20 +689,25 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ## Project Statistics
 
-**Total Lines of Code:** ~9,500+
+**Total Lines of Code:** ~13,500+
 - Converters: ~4,800 lines
 - Domain Models: ~3,000 lines
 - REST API Controllers: ~1,500 lines
+- Unit Tests: ~4,000 lines
 
-**Total Files:** ~43+
+**Total Files:** ~61+
 - Converter implementations: 17
-- Domain models: 26+
+- Converter unit tests: 17
+- Test infrastructure: 1
+- Domain models: 27
 - REST controllers: 4
 - Infrastructure: 3
 
-**Test Coverage:** Pending
-- Unit tests: To be implemented
-- Integration tests: To be implemented
+**Test Coverage:** ✅ Complete
+- Unit tests: ✅ 17 test classes with 150+ test cases
+- Test framework: JUnit 5, AssertJ, Reactor Test
+- Test types: Reactive testing, field validation, error handling
+- Integration tests: Pending (future enhancement)
 
 ---
 
@@ -727,15 +734,16 @@ curl -X POST "http://localhost:8080/api/v1/convert/payments/pain001-to-pacs008" 
 
 ## Next Steps
 
-1. **Unit Testing** - Create comprehensive unit tests for all 16 converters
-2. **Integration Testing** - End-to-end message flow testing
-3. **XML Marshalling** - Add Woodstox XML processing (optional)
-4. **Performance Testing** - Load testing and optimization
-5. **Monitoring** - Add metrics and observability
+1. ✅ **Unit Testing** - COMPLETED: 17 test classes with 150+ test cases for all converters
+2. **Integration Testing** - End-to-end message flow testing across multiple converters
+3. **XML Marshalling** - Add Woodstox XML processing for ISO 20022 XML format (optional)
+4. **Performance Testing** - Load testing and optimization for high-volume scenarios
+5. **Monitoring & Observability** - Add Micrometer metrics, distributed tracing, and dashboards
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2024-01-15
+**Document Version:** 2.0
+**Last Updated:** 2025-01-15
 **Repository:** elastic-cluster-v1
 **Branch:** claude/initial-setup-01L5uhSt5HGZcHAqG7k19emx
+**Status:** ✅ ALL 17 CONVERTERS IMPLEMENTED AND TESTED
