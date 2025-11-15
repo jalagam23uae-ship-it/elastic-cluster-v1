@@ -4,9 +4,9 @@
 
 This document provides a complete inventory of all ISO 20022 message converters implemented for the FedNow instant payment system.
 
-**Total Converters Implemented: 16**
+**Total Converters Implemented: 17**
 - Phase 1 (Core Customer Converters): 6
-- Phase 2 (Investigation & Exception): 3
+- Phase 2 (Investigation & Exception): 4
 - Phase 3 (Extended Payment Types): 4
 - Phase 4 (Reporting & Reconciliation): 3
 
@@ -277,9 +277,54 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
+### 10. Camt029ToPain002Converter
+**Conversion:** `camt.029 → pain.002`
+
+**Purpose:** Convert investigation result to customer payment status report
+
+**Key Transformations:**
+- Translates investigation outcomes to customer-friendly status
+- Maps investigation status to payment status codes (ACCP, RJCT, PDNG)
+- Provides user-friendly messages for each resolution scenario
+- Preserves all original payment identifiers (UETR, E2E ID, etc.)
+
+**Investigation Status Mapping:**
+- RSLV (Resolved) → ACCP: Payment found and processed successfully
+- PNDG (Pending) → PDNG: Investigation ongoing
+- CNCL (Cancelled) → RJCT: Payment cancelled
+- NRES (No Resolution) → RJCT: Cannot resolve with explanation
+
+**Confirmation Codes:**
+- ACPT: Payment accepted/processed → "Payment was successfully processed"
+- CNCL: Payment cancelled → "Payment cancelled" with detailed reason
+- MODI: Payment modified → "Payment was modified and processed"
+- PDNG: Still pending → "Investigation ongoing"
+- RJCT: Payment rejected → "Payment rejected" with status reason
+
+**Rejection Reasons with Customer Messages:**
+- NFND: "Payment not found in our records. Please verify payment details."
+- NPAY: "No payment was made with the provided details."
+- TIMO: "Investigation timed out. Please submit a new inquiry."
+- CUST: "Investigation cancelled at your request."
+
+**Investigation Scenarios:**
+- Missing payment (customer claims payment not received)
+- Payment discrepancy (amount or details don't match)
+- Customer complaint (disputed transaction)
+- Regulatory inquiry (compliance investigation)
+- Fraud investigation (suspected fraudulent activity)
+
+**Use Case:** Bank completes investigation → Generate camt.029 → Convert to pain.002 → Send customer-friendly status to customer
+
+**Location:** `src/main/java/com/fednow/iso20022/converter/phase2/Camt029ToPain002Converter.java`
+
+**API Endpoint:** `POST /api/v1/convert/investigation/camt029-to-pain002`
+
+---
+
 ## Phase 3: Extended Payment Types (4 Converters)
 
-### 10. Pain008ToPacs003Converter
+### 11. Pain008ToPacs003Converter
 **Conversion:** `pain.008 → pacs.003`
 
 **Purpose:** Convert customer direct debit to interbank direct debit
@@ -312,7 +357,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 11. Pacs003ToPacs004Converter
+### 12. Pacs003ToPacs004Converter
 **Conversion:** `pacs.003 → pacs.004`
 
 **Purpose:** Generate direct debit return
@@ -350,7 +395,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 12. Pain009ToPacs008Converter
+### 13. Pain009ToPacs008Converter
 **Conversion:** `pain.009 → pacs.008`
 
 **Purpose:** Convert mandate setup to initial payment
@@ -386,7 +431,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 13. Pain013ToPacs028Converter
+### 14. Pain013ToPacs028Converter
 **Conversion:** `pain.013 → pacs.028`
 
 **Purpose:** Convert activation request to status request
@@ -426,7 +471,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ## Phase 4: Reporting & Reconciliation (3 Converters)
 
-### 14. Pacs008ToCamt052Converter
+### 15. Pacs008ToCamt052Converter
 **Conversion:** `pacs.008 → camt.052`
 
 **Purpose:** Generate account report from single payment
@@ -460,7 +505,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 15. MultiplePacs008ToCamt052Converter
+### 16. MultiplePacs008ToCamt052Converter
 **Conversion:** `Multiple pacs.008 → camt.052`
 
 **Purpose:** Generate consolidated account report from multiple payments
@@ -490,7 +535,7 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ---
 
-### 16. MultiplePacs008ToCamt053Converter
+### 17. MultiplePacs008ToCamt053Converter
 **Conversion:** `Multiple pacs.008 → camt.053`
 
 **Purpose:** Generate official account statement from multiple payments
@@ -642,14 +687,14 @@ This document provides a complete inventory of all ISO 20022 message converters 
 
 ## Project Statistics
 
-**Total Lines of Code:** ~8,500+
-- Converters: ~4,000 lines
+**Total Lines of Code:** ~9,500+
+- Converters: ~4,800 lines
 - Domain Models: ~3,000 lines
 - REST API Controllers: ~1,500 lines
 
-**Total Files:** ~40+
-- Converter implementations: 16
-- Domain models: 25+
+**Total Files:** ~43+
+- Converter implementations: 17
+- Domain models: 26+
 - REST controllers: 4
 - Infrastructure: 3
 
